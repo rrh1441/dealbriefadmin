@@ -4,11 +4,30 @@ export interface Scan {
   scanId: string
   companyName: string
   domain: string
-  status: 'queued' | 'processing' | 'done' | 'failed'
+  status: 'queued' | 'running' | 'processing' | 'done' | 'completed' | 'failed'
   createdAt: string
   completedAt?: string
   totalFindings?: number
   maxSeverity?: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  // Status tracking fields
+  progress?: number
+  currentModule?: string
+  errorMessage?: string
+  lastUpdated?: string
+}
+
+export interface ScanStatus {
+  scan_id: string
+  company_name: string
+  domain: string
+  status: 'queued' | 'running' | 'processing' | 'completed' | 'failed'
+  progress: number
+  current_module?: string
+  total_modules: number
+  started_at: string
+  last_updated: string
+  completed_at?: string
+  error_message?: string
 }
 
 export interface ScanDetails extends Scan {
@@ -60,19 +79,19 @@ export const api = {
     return response.json()
   },
 
-  async createScan(companyName: string, domain: string): Promise<{ scanId: string }> {
+  async getScanStatus(scanId: string): Promise<ScanStatus> {
+    const response = await fetch(`/api/scans/${scanId}/status`)
+    if (!response.ok) throw new Error('Failed to fetch scan status')
+    return response.json()
+  },
+
+  async createScan(companyName: string, domain: string): Promise<{ scanId: string; statusStored: boolean }> {
     const response = await fetch('/api/scans/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyName, domain }),
     })
     if (!response.ok) throw new Error('Failed to create scan')
-    return response.json()
-  },
-
-  async getScanStatus(scanId: string): Promise<{ state: string; message: string }> {
-    const response = await fetch(`${API_URL}/scan/${scanId}/status`)
-    if (!response.ok) throw new Error('Failed to fetch scan status')
     return response.json()
   },
 
@@ -94,4 +113,28 @@ export const api = {
     if (!response.ok) throw new Error('Failed to rerun scan')
     return response.json()
   },
+
+  // Utility function for polling scan status
+  pollScanStatus(scanId: string, onUpdate: (status: ScanStatus) => void, intervalMs: number = 5000): () => void {
+    const poll = async () => {
+      try {
+        const status = await this.getScanStatus(scanId)
+        onUpdate(status)
+        
+        // Stop polling if scan is completed or failed
+        if (['completed', 'failed'].includes(status.status)) {
+          clearInterval(intervalId)
+        }
+      } catch (error) {
+        console.error('Failed to poll scan status:', error)
+      }
+    }
+    
+    // Poll immediately, then at intervals
+    poll()
+    const intervalId = setInterval(poll, intervalMs)
+    
+    // Return cleanup function
+    return () => clearInterval(intervalId)
+  }
 }

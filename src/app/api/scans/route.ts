@@ -7,6 +7,28 @@ export async function GET() {
   try {
     console.log('🔍 [SCANS] Starting scan fetch operation...')
     
+    // Fetch scan statuses first (for active scans)
+    const statusStart = Date.now()
+    const { data: scanStatuses, error: statusError } = await supabaseServer
+      .from('scan_status')
+      .select('*')
+      .order('started_at', { ascending: false })
+    
+    const statusTime = Date.now() - statusStart
+    console.log(`📊 [SCANS] Scan status query completed in ${statusTime}ms`)
+    
+    if (statusError) {
+      console.warn('⚠️ [SCANS] Failed to fetch scan statuses:', statusError)
+    }
+    
+    // Create a map of scan statuses for quick lookup
+    const statusMap = new Map()
+    scanStatuses?.forEach(status => {
+      statusMap.set(status.scan_id, status)
+    })
+    
+    console.log(`📊 [SCANS] Found ${scanStatuses?.length || 0} scan statuses`)
+    
     // Fetch artifacts and group by scan_id to create scan summaries
     const queryStart = Date.now()
     const { data: artifacts, error } = await supabaseServer
@@ -16,7 +38,7 @@ export async function GET() {
       .order('created_at', { ascending: false })
     
     const queryTime = Date.now() - queryStart
-    console.log(`📊 [SCANS] Supabase query completed in ${queryTime}ms`)
+    console.log(`📊 [SCANS] Supabase artifacts query completed in ${queryTime}ms`)
     
     if (error) {
       console.error('❌ [SCANS] Supabase query error:', error)
@@ -48,15 +70,22 @@ export async function GET() {
       processedCount++
       
       if (!scanMap.has(scanId)) {
+        const scanStatus = statusMap.get(scanId)
+        
         scanMap.set(scanId, {
           scanId,
-          companyName: meta?.company || 'Unknown',
-          domain: meta?.domain || artifact.src_url || 'Unknown',
-          status: 'done',
+          companyName: meta?.company || scanStatus?.company_name || 'Unknown',
+          domain: meta?.domain || artifact.src_url || scanStatus?.domain || 'Unknown',
+          status: scanStatus?.status || 'done', // Use status from scan_status table if available
           createdAt: artifact.created_at,
           completedAt: artifact.created_at,
           totalFindings: 0,
-          maxSeverity: 'INFO'
+          maxSeverity: 'INFO',
+          // Add status tracking fields
+          progress: scanStatus?.progress || 100,
+          currentModule: scanStatus?.current_module,
+          errorMessage: scanStatus?.error_message,
+          lastUpdated: scanStatus?.last_updated
         })
       }
       
@@ -83,6 +112,26 @@ export async function GET() {
       }
     })
     
+    // Add scans that are in scan_status but don't have artifacts yet (active scans)
+    scanStatuses?.forEach(status => {
+      if (!scanMap.has(status.scan_id)) {
+        scanMap.set(status.scan_id, {
+          scanId: status.scan_id,
+          companyName: status.company_name,
+          domain: status.domain,
+          status: status.status,
+          createdAt: status.started_at,
+          completedAt: status.completed_at,
+          totalFindings: 0,
+          maxSeverity: 'INFO',
+          progress: status.progress,
+          currentModule: status.current_module,
+          errorMessage: status.error_message,
+          lastUpdated: status.last_updated
+        })
+      }
+    })
+    
     const processingTime = Date.now() - processingStart
     console.log(`📊 [SCANS] Processed ${processedCount} artifacts, skipped ${skippedCount} in ${processingTime}ms`)
     console.log(`📊 [SCANS] Created ${scanMap.size} unique scans`)
@@ -91,8 +140,15 @@ export async function GET() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 100)
     
+    // Log status breakdown
+    const statusBreakdown = scans.reduce((acc, scan) => {
+      acc[scan.status] = (acc[scan.status] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+    
     const totalTime = Date.now() - startTime
     console.log(`✅ [SCANS] Operation completed in ${totalTime}ms - returning ${scans.length} scans`)
+    console.log(`📊 [SCANS] Status breakdown:`, statusBreakdown)
     
     return NextResponse.json(scans)
   } catch (error: any) {
