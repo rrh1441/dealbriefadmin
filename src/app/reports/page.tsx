@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@dealbrief/ui'
-import { Button } from '@dealbrief/ui'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { FileText, Download, Calendar, Tag, Search, Eye } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { MainNav } from '@/components/layout/main-nav'

@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Shield, LogOut, BarChart, FileText, AlertTriangle } from 'lucide-react'
-import { Button } from '@dealbrief/ui'
-import { cn } from '@dealbrief/utils'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart },

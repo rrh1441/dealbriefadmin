@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@dealbrief/ui'
-import { Button } from '@dealbrief/ui'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Shield, RefreshCw, Download, AlertTriangle, CheckCircle, Clock, ChevronRight, Tag } from 'lucide-react'
 import { api, type ScanDetails, type ModuleStatus } from '@/lib/api'
 import { formatDistanceToNow, format } from 'date-fns'

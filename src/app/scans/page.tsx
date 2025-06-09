@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@dealbrief/ui'
-import { Button } from '@dealbrief/ui'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Shield, Plus, Search, Filter, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react'
 import { api, type Scan } from '@/lib/api'
 import Link from 'next/link'
