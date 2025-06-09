@@ -21,7 +21,6 @@ export async function GET(
         id,
         scan_id,
         company_name,
-        domain,
         report_content,
         executive_summary,
         tags,
@@ -96,7 +95,7 @@ export async function GET(
         <body>
           <div class="header">
             <h1>Security Assessment Report</h1>
-            <h2>${report.company_name} (${report.domain})</h2>
+            <h2>${report.company_name}</h2>
             <p><strong>Generated:</strong> ${new Date(report.generated_at).toLocaleString()}</p>
             <div class="tags">
               <strong>Tags:</strong>

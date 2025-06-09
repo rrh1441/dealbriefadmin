@@ -40,7 +40,7 @@ export async function POST(
     console.log(`📊 [REPORT-GEN] Report content length: ${reportData.report?.length || 0} chars`)
     console.log(`📊 [REPORT-GEN] Summary length: ${reportData.summary?.length || 0} chars`)
     
-    // Get scan details to populate company/domain info
+    // Get scan details to populate company info
     const scanLookupStart = Date.now()
     const { data: artifacts, error: artifactsError } = await supabaseServer
       .from('artifacts')
@@ -68,12 +68,11 @@ export async function POST(
     
     console.log(`📊 [REPORT-GEN] Scan details - Company: ${companyName}, Domain: ${domain}`)
     
-    // Store report in database using upsert
+    // Store report in database using upsert (without domain field)
     const dbStoreStart = Date.now()
     const reportRecord = {
       scan_id: scanId,
       company_name: companyName,
-      domain: domain,
       report_content: reportData.report || '',
       executive_summary: reportData.summary || '',
       tags: JSON.stringify(tags),
@@ -84,7 +83,6 @@ export async function POST(
     console.log(`💾 [REPORT-GEN] Report record summary:`, {
       scan_id: reportRecord.scan_id,
       company_name: reportRecord.company_name,
-      domain: reportRecord.domain,
       content_length: reportRecord.report_content.length,
       summary_length: reportRecord.executive_summary.length,
       tags_count: tags.length

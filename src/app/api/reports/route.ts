@@ -14,7 +14,6 @@ export async function GET() {
         id,
         scan_id,
         company_name,
-        domain,
         tags,
         generated_at
       `)
@@ -40,6 +39,7 @@ export async function GET() {
     const processingStart = Date.now()
     const processedReports = reports?.map(row => ({
       ...row,
+      domain: 'N/A', // Add default domain since column doesn't exist
       tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : (row.tags || [])
     })) || []
     
