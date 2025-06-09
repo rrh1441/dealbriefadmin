@@ -1,42 +1,28 @@
 {
-  "name": "@dealbrief/monorepo",
-  "version": "0.2.0",
-  "description": "DealBrief Security Scanner Monorepo",
+  "name": "dealbrief-admin",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": ">=20.11"
-  },
   "scripts": {
-    "dev:admin": "pnpm --filter @dealbrief/admin dev",
-    "dev:report": "pnpm --filter @dealbrief/report-generator dev",
-    "dev:api": "pnpm --filter @dealbrief/api-main dev",
-    "dev:worker": "pnpm --filter @dealbrief/workers dev",
-    "build": "pnpm -r build",
-    "build:admin": "pnpm --filter @dealbrief/admin build",
-    "build:report": "pnpm --filter @dealbrief/report-generator build",
-    "build:api": "pnpm --filter @dealbrief/api-main build",
-    "build:worker": "pnpm --filter @dealbrief/workers build",
-    "lint": "pnpm -r lint",
-    "clean": "pnpm -r exec rm -rf node_modules dist .next .turbo && rm -rf node_modules",
-    "install:all": "pnpm install"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
-  "keywords": [
-    "security",
-    "scanner",
-    "osint",
-    "due-diligence"
-  ],
-  "author": "DealBrief Team",
-  "license": "ISC",
+  "dependencies": {
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "pdfjs-dist": "^4.10.38"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
     "typescript": "^5.7.2"
-  },
-  "dependencies": {
-    "pdfjs-dist": "^4.10.38"
   }
 }
