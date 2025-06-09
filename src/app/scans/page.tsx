@@ -58,8 +58,8 @@ export default function ScansPage() {
   }
 
   const filteredScans = scans.filter(scan => 
-    scan.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    scan.domain.toLowerCase().includes(searchTerm.toLowerCase())
+    (scan.companyName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (scan.domain?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   const getSeverityIcon = (severity?: string) => {
