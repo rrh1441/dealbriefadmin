@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@dealbrief/ui'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, Shield, CheckCircle } from 'lucide-react'
 import { MainNav } from '@/components/layout/main-nav'
 
