@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPool } from '@/lib/db'
+import { supabaseServer } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ scanId: string }> }
 ) {
+  const startTime = Date.now()
+  
   try {
     const params = await context.params
     const { scanId } = params
     
-    console.log('🔍 Retrieving report for scan:', scanId)
+    console.log(`🔍 [REPORT-VIEW] Starting report retrieval for scan: ${scanId}`)
+    console.log(`🔍 [REPORT-VIEW] Request URL: ${request.url}`)
     
-    const pool = getPool()
-    
-    const query = `
-      SELECT 
+    const queryStart = Date.now()
+    const { data: reports, error } = await supabaseServer
+      .from('security_reports')
+      .select(`
         id,
         scan_id,
         company_name,
@@ -23,20 +26,33 @@ export async function GET(
         executive_summary,
         tags,
         generated_at
-      FROM security_reports
-      WHERE scan_id = $1
-      ORDER BY generated_at DESC
-      LIMIT 1
-    `
+      `)
+      .eq('scan_id', scanId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
     
-    const result = await pool.query(query, [scanId])
+    const queryTime = Date.now() - queryStart
+    console.log(`📊 [REPORT-VIEW] Supabase query completed in ${queryTime}ms`)
     
-    if (result.rows.length === 0) {
+    if (error) {
+      console.error(`❌ [REPORT-VIEW] Supabase query error for scan ${scanId}:`, error)
+      throw error
+    }
+    
+    if (!reports || reports.length === 0) {
+      console.log(`❌ [REPORT-VIEW] Report not found for scan: ${scanId}`)
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
     
-    const report = result.rows[0]
-    console.log('✅ Found report for:', report.company_name)
+    const report = reports[0]
+    console.log(`✅ [REPORT-VIEW] Found report for: ${report.company_name}`)
+    console.log(`📊 [REPORT-VIEW] Report stats - Content: ${report.report_content?.length || 0} chars, Summary: ${report.executive_summary?.length || 0} chars`)
+    
+    // Parse tags if they're stored as JSON string
+    const tags = typeof report.tags === 'string' ? JSON.parse(report.tags) : (report.tags || [])
+    console.log(`📊 [REPORT-VIEW] Tags: ${Array.isArray(tags) ? tags.length : 0} tags`)
+    
+    const htmlGenerationStart = Date.now()
     
     // Return as HTML for viewing
     const html = `
@@ -84,7 +100,7 @@ export async function GET(
             <p><strong>Generated:</strong> ${new Date(report.generated_at).toLocaleString()}</p>
             <div class="tags">
               <strong>Tags:</strong>
-              ${report.tags ? JSON.parse(report.tags).map((tag: string) => `<span class="tag">${tag}</span>`).join('') : 'None'}
+              ${Array.isArray(tags) ? tags.map((tag: string) => `<span class="tag">${tag}</span>`).join('') : 'None'}
             </div>
           </div>
           
@@ -103,11 +119,26 @@ export async function GET(
       </html>
     `
     
+    const htmlGenerationTime = Date.now() - htmlGenerationStart
+    const totalTime = Date.now() - startTime
+    
+    console.log(`📊 [REPORT-VIEW] HTML generation completed in ${htmlGenerationTime}ms`)
+    console.log(`✅ [REPORT-VIEW] Operation completed in ${totalTime}ms for ${report.company_name}`)
+    console.log(`📊 [REPORT-VIEW] Final HTML size: ${html.length} characters`)
+    
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' }
     })
   } catch (error: any) {
-    console.error('❌ Failed to retrieve report:', error)
+    const totalTime = Date.now() - startTime
+    console.error(`❌ [REPORT-VIEW] Operation failed after ${totalTime}ms:`, error)
+    console.error('❌ [REPORT-VIEW] Error details:', {
+      name: error?.name,
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint
+    })
     
     return NextResponse.json({
       error: 'Failed to retrieve report',

@@ -1,100 +1,136 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPool } from '@/lib/db'
+import { supabaseServer } from '@/lib/db'
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ scanId: string }> }
 ) {
+  const startTime = Date.now()
+  
   try {
     const { tags = [] } = await request.json()
     const params = await context.params
     const { scanId } = params
     
-    console.log('🔍 Generating report for scan:', scanId)
-    console.log('📋 Tags:', tags)
-    
-    const pool = getPool()
+    console.log(`🔍 [REPORT-GEN] Starting report generation for scan: ${scanId}`)
+    console.log(`📋 [REPORT-GEN] Tags provided:`, tags)
+    console.log(`🔍 [REPORT-GEN] Request URL: ${request.url}`)
     
     // Call the main API to generate the report
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://dealbrief-scanner.fly.dev'
-    console.log('📡 Calling report API:', `${apiUrl}/scan/${scanId}/report`)
+    const reportApiUrl = `${apiUrl}/scan/${scanId}/report`
+    console.log(`📡 [REPORT-GEN] Calling external report API: ${reportApiUrl}`)
     
-    const reportResponse = await fetch(`${apiUrl}/scan/${scanId}/report`)
+    const reportApiStart = Date.now()
+    const reportResponse = await fetch(reportApiUrl)
+    const reportApiTime = Date.now() - reportApiStart
+    
+    console.log(`📡 [REPORT-GEN] External API call completed in ${reportApiTime}ms with status: ${reportResponse.status}`)
     
     if (!reportResponse.ok) {
+      const errorText = await reportResponse.text()
+      console.error(`❌ [REPORT-GEN] External API error: ${reportResponse.status} ${reportResponse.statusText}`)
+      console.error(`❌ [REPORT-GEN] Error response body:`, errorText)
       throw new Error(`Report API returned ${reportResponse.status}: ${reportResponse.statusText}`)
     }
     
     const reportData = await reportResponse.json()
-    console.log('✅ Report generated successfully')
+    console.log(`✅ [REPORT-GEN] Report generated successfully`)
+    console.log(`📊 [REPORT-GEN] Report data keys:`, Object.keys(reportData))
+    console.log(`📊 [REPORT-GEN] Report content length: ${reportData.report?.length || 0} chars`)
+    console.log(`📊 [REPORT-GEN] Summary length: ${reportData.summary?.length || 0} chars`)
     
     // Get scan details to populate company/domain info
-    const scanQuery = `
-      SELECT 
-        meta->>'scan_id' as scan_id,
-        meta->>'company' as company_name,
-        MIN(CASE WHEN meta->>'domain' IS NOT NULL THEN meta->>'domain' ELSE src_url END) as domain
-      FROM artifacts
-      WHERE meta->>'scan_id' = $1
-      GROUP BY meta->>'scan_id', meta->>'company'
-      LIMIT 1
-    `
+    const scanLookupStart = Date.now()
+    const { data: artifacts, error: artifactsError } = await supabaseServer
+      .from('artifacts')
+      .select('meta, src_url')
+      .eq('meta->>scan_id', scanId)
+      .limit(1)
     
-    const scanResult = await pool.query(scanQuery, [scanId])
+    const scanLookupTime = Date.now() - scanLookupStart
+    console.log(`📊 [REPORT-GEN] Scan lookup completed in ${scanLookupTime}ms`)
     
-    if (scanResult.rows.length === 0) {
+    if (artifactsError) {
+      console.error(`❌ [REPORT-GEN] Scan lookup error for ${scanId}:`, artifactsError)
+      throw artifactsError
+    }
+    
+    if (!artifacts || artifacts.length === 0) {
+      console.error(`❌ [REPORT-GEN] Scan not found in database: ${scanId}`)
       throw new Error('Scan not found')
     }
     
-    const scan = scanResult.rows[0]
+    const artifact = artifacts[0]
+    const meta = artifact.meta as any
+    const companyName = meta?.company || 'Unknown'
+    const domain = meta?.domain || artifact.src_url || 'Unknown'
     
-    // Store report in database
-    const insertReportQuery = `
-      INSERT INTO security_reports (
-        scan_id, 
-        company_name, 
-        domain, 
-        report_content, 
-        executive_summary, 
-        tags, 
-        generated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      ON CONFLICT (scan_id) 
-      DO UPDATE SET 
-        report_content = EXCLUDED.report_content,
-        executive_summary = EXCLUDED.executive_summary,
-        tags = EXCLUDED.tags,
-        generated_at = EXCLUDED.generated_at
-      RETURNING id, generated_at
-    `
+    console.log(`📊 [REPORT-GEN] Scan details - Company: ${companyName}, Domain: ${domain}`)
     
-    console.log('💾 Storing report in database...')
-    const reportInsertResult = await pool.query(insertReportQuery, [
-      scanId,
-      scan.company_name,
-      scan.domain,
-      reportData.report || '',
-      reportData.summary || '',
-      JSON.stringify(tags),
-    ])
+    // Store report in database using upsert
+    const dbStoreStart = Date.now()
+    const reportRecord = {
+      scan_id: scanId,
+      company_name: companyName,
+      domain: domain,
+      report_content: reportData.report || '',
+      executive_summary: reportData.summary || '',
+      tags: JSON.stringify(tags),
+      generated_at: new Date().toISOString()
+    }
     
-    const reportRecord = reportInsertResult.rows[0]
-    console.log('✅ Report stored with ID:', reportRecord.id)
+    console.log(`💾 [REPORT-GEN] Storing report in database...`)
+    console.log(`💾 [REPORT-GEN] Report record summary:`, {
+      scan_id: reportRecord.scan_id,
+      company_name: reportRecord.company_name,
+      domain: reportRecord.domain,
+      content_length: reportRecord.report_content.length,
+      summary_length: reportRecord.executive_summary.length,
+      tags_count: tags.length
+    })
     
-    return NextResponse.json({ 
-      reportId: reportRecord.id,
+    const { data: storedReport, error: reportError } = await supabaseServer
+      .from('security_reports')
+      .upsert(reportRecord, {
+        onConflict: 'scan_id'
+      })
+      .select('id, generated_at')
+      .single()
+    
+    const dbStoreTime = Date.now() - dbStoreStart
+    console.log(`💾 [REPORT-GEN] Database storage completed in ${dbStoreTime}ms`)
+    
+    if (reportError) {
+      console.error(`❌ [REPORT-GEN] Database storage error:`, reportError)
+      throw reportError
+    }
+    
+    console.log(`✅ [REPORT-GEN] Report stored with ID: ${storedReport?.id}`)
+    
+    const totalTime = Date.now() - startTime
+    const response = { 
+      reportId: storedReport?.id,
       reportUrl: `/api/scans/${scanId}/report/view`,
       report: reportData.report,
       summary: reportData.summary,
-      generatedAt: reportRecord.generated_at
-    })
+      generatedAt: storedReport?.generated_at
+    }
+    
+    console.log(`✅ [REPORT-GEN] Operation completed in ${totalTime}ms`)
+    console.log(`✅ [REPORT-GEN] Performance breakdown: API=${reportApiTime}ms, Lookup=${scanLookupTime}ms, Store=${dbStoreTime}ms`)
+    
+    return NextResponse.json(response)
   } catch (error: any) {
-    console.error('❌ Failed to generate report:', error)
-    console.error('Error details:', {
+    const totalTime = Date.now() - startTime
+    console.error(`❌ [REPORT-GEN] Operation failed after ${totalTime}ms:`, error)
+    console.error('❌ [REPORT-GEN] Error details:', {
       name: error?.name,
       message: error?.message,
       code: error?.code,
-      stack: error?.stack
+      details: error?.details,
+      hint: error?.hint,
+      stack: error?.stack?.split('\n').slice(0, 5) // First 5 lines of stack trace
     })
     
     return NextResponse.json({

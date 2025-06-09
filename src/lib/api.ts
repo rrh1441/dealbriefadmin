@@ -48,7 +48,7 @@ export interface Artifact {
 
 export const api = {
   async getScans(): Promise<Scan[]> {
-    // For now, fetch from the database directly via API route
+    // Fetch from Vercel API routes which use Supabase
     const response = await fetch('/api/scans')
     if (!response.ok) throw new Error('Failed to fetch scans')
     return response.json()
@@ -87,7 +87,8 @@ export const api = {
   },
 
   async rerunScan(scanId: string): Promise<{ newScanId: string }> {
-    const response = await fetch(`/api/scans/${scanId}/rerun`, {
+    // Call Fly.io backend directly for rerunning scans
+    const response = await fetch(`${API_URL}/scan/${scanId}/rerun`, {
       method: 'POST',
     })
     if (!response.ok) throw new Error('Failed to rerun scan')
