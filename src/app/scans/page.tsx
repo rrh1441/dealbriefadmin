@@ -16,6 +16,7 @@ export default function ScansPage() {
   const [showNewScanForm, setShowNewScanForm] = useState(false)
   const [newScan, setNewScan] = useState({ companyName: '', domain: '' })
   const [creating, setCreating] = useState(false)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
   const pollersRef = useRef<Map<string, () => void>>(new Map())
 
   const fetchScans = async () => {
@@ -76,9 +77,14 @@ export default function ScansPage() {
     }
   }, [])
 
-  const handleCreateScan = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setShowConfirmModal(true)
+  }
+
+  const handleCreateScan = async () => {
     setCreating(true)
+    setShowConfirmModal(false)
     
     try {
       const result = await api.createScan(newScan.companyName, newScan.domain)
@@ -200,7 +206,7 @@ export default function ScansPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleCreateScan} className="space-y-4">
+                <form onSubmit={handleFormSubmit} className="space-y-4">
                   <div>
                     <label htmlFor="companyName" className="block text-sm font-medium mb-1">
                       Company Name
@@ -211,6 +217,10 @@ export default function ScansPage() {
                       required
                       value={newScan.companyName}
                       onChange={(e) => setNewScan({ ...newScan, companyName: e.target.value })}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       placeholder="Acme Corp"
                     />
@@ -225,6 +235,10 @@ export default function ScansPage() {
                       required
                       value={newScan.domain}
                       onChange={(e) => setNewScan({ ...newScan, domain: e.target.value })}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       placeholder="example.com"
                     />
@@ -244,6 +258,51 @@ export default function ScansPage() {
                 </form>
               </CardContent>
             </Card>
+          )}
+
+          {showConfirmModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-md mx-4">
+                <CardHeader>
+                  <CardTitle>Confirm Scan Creation</CardTitle>
+                  <CardDescription>
+                    Please verify the details before starting the scan. Once started, the scan cannot be stopped.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Company Name:
+                    </label>
+                    <p className="text-sm font-medium">{newScan.companyName}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Domain:
+                    </label>
+                    <p className="text-sm font-medium">{newScan.domain}</p>
+                  </div>
+                  <div className="flex space-x-2 pt-4">
+                    <Button 
+                      onClick={handleCreateScan} 
+                      disabled={creating}
+                      className="flex-1"
+                    >
+                      {creating ? 'Creating...' : 'Start Scan'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowConfirmModal(false)}
+                      disabled={creating}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           <div className="flex items-center space-x-2">
