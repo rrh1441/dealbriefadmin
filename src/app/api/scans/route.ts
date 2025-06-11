@@ -13,6 +13,12 @@ export async function GET() {
       .select('*')
       .order('created_at', { ascending: false })
 
+    // Handle build-time mock response
+    if (statusError?.code === 'BUILD_TIME_MOCK') {
+      console.log('📦 [SCANS] Build-time mode: returning empty scan list')
+      return NextResponse.json([])
+    }
+
     if (statusError) {
       console.error('❌ [SCANS] Failed to fetch scan statuses:', statusError)
       throw statusError

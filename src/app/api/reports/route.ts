@@ -11,6 +11,12 @@ export async function GET() {
       .select('*')
       .order('created_at', { ascending: false })
 
+    // Handle build-time mock response
+    if (error?.code === 'BUILD_TIME_MOCK') {
+      console.log('📦 [REPORTS] Build-time mode: returning empty reports list')
+      return NextResponse.json([])
+    }
+
     if (error) {
       console.error('❌ [REPORTS] Supabase query error:', error)
       throw error
