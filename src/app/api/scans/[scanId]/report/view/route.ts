@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/db'
+import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
@@ -13,11 +13,10 @@ export async function GET(
     
     // Query security_reports table for report_url
     const queryStart = Date.now()
-    const { data: report, error } = await supabaseServer
+    const { data: report, error } = await db
       .from('security_reports')
-      .select('report_url')
+      .select('*')
       .eq('scan_id', scanId)
-      .not('report_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -37,21 +36,20 @@ export async function GET(
       throw error
     }
     
-    if (!report || !report.report_url) {
-      console.log(`⚠️ [REPORT-VIEW] No report URL found for scan ${scanId}`)
+    if (!report) {
+      console.log(`⚠️ [REPORT-VIEW] No report found for scan ${scanId}`)
       return NextResponse.json({ 
         error: 'Report not found',
-        message: `No report URL found for scan ID: ${scanId}`
+        message: `No report found for scan ID: ${scanId}`
       }, { status: 404 })
     }
     
-    console.log(`✅ [REPORT-VIEW] Found report URL for scan ${scanId}: ${report.report_url}`)
+    console.log(`✅ [REPORT-VIEW] Found report for scan ${scanId}`)
     
     const totalTime = Date.now() - startTime
-    console.log(`✅ [REPORT-VIEW] Redirecting to report URL in ${totalTime}ms`)
+    console.log(`✅ [REPORT-VIEW] Returning report in ${totalTime}ms`)
     
-    // Redirect to the report URL
-    return NextResponse.redirect(report.report_url, 302)
+    return NextResponse.json(report)
   } catch (error: any) {
     const totalTime = Date.now() - startTime
     console.error(`❌ [REPORT-VIEW] Operation failed after ${totalTime}ms:`, error)

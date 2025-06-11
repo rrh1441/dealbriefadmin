@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/db'
+import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
@@ -13,7 +13,7 @@ export async function GET(
     
     // Query Supabase scan_status table only
     const statusStart = Date.now()
-    const { data: scanStatus, error: dbError } = await supabaseServer
+    const { data: status, error } = await db
       .from('scan_status')
       .select('*')
       .eq('scan_id', scanId)
@@ -22,9 +22,9 @@ export async function GET(
     const statusTime = Date.now() - statusStart
     console.log(`📊 [SCAN-STATUS] Supabase query completed in ${statusTime}ms`)
     
-    if (dbError) {
+    if (error) {
       // Handle "not found" error (PGRST116)
-      if (dbError.code === 'PGRST116') {
+      if (error.code === 'PGRST116') {
         console.log(`⚠️ [SCAN-STATUS] No record found in Supabase for scan ${scanId}`)
         return NextResponse.json({ 
           error: 'Scan not found',
@@ -33,11 +33,11 @@ export async function GET(
       }
       
       // Handle other database errors
-      console.error('❌ [SCAN-STATUS] Supabase query error:', dbError)
-      throw dbError
+      console.error('❌ [SCAN-STATUS] Supabase query error:', error)
+      throw error
     }
     
-    if (!scanStatus) {
+    if (!status) {
       console.log(`⚠️ [SCAN-STATUS] No scan status found for scan ${scanId}`)
       return NextResponse.json({ 
         error: 'Scan not found',
@@ -46,16 +46,31 @@ export async function GET(
     }
     
     console.log(`✅ [SCAN-STATUS] Found scan status for ${scanId}:`, {
-      status: scanStatus.status,
-      progress: scanStatus.progress,
-      currentModule: scanStatus.current_module,
-      totalArtifacts: scanStatus.total_artifacts_count
+      id: status.scan_id,
+      companyName: status.company_name,
+      status: status.status,
+      progress: status.progress,
+      currentModule: status.current_module,
+      totalModules: status.total_modules,
+      createdAt: status.created_at,
+      updatedAt: status.updated_at,
+      errorMessage: status.error_message
     })
     
     const totalTime = Date.now() - startTime
     console.log(`✅ [SCAN-STATUS] Operation completed in ${totalTime}ms`)
     
-    return NextResponse.json(scanStatus)
+    return NextResponse.json({
+      id: status.scan_id,
+      companyName: status.company_name,
+      status: status.status,
+      progress: status.progress,
+      currentModule: status.current_module,
+      totalModules: status.total_modules,
+      createdAt: status.created_at,
+      updatedAt: status.updated_at,
+      errorMessage: status.error_message
+    })
   } catch (error: any) {
     const totalTime = Date.now() - startTime
     console.error(`❌ [SCAN-STATUS] Operation failed after ${totalTime}ms:`, error)

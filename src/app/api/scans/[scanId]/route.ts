@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/db'
+import { db } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
@@ -13,7 +13,7 @@ export async function GET(
     
     // Fetch scan metadata from scan_status table
     const statusStart = Date.now()
-    const { data: scanStatus, error: statusError } = await supabaseServer
+    const { data: scanStatus, error: statusError } = await db
       .from('scan_status')
       .select('*')
       .eq('scan_id', scanId)
@@ -46,7 +46,7 @@ export async function GET(
     
     // Fetch findings from security_reports table
     const findingsStart = Date.now()
-    const { data: findings, error: findingsError } = await supabaseServer
+    const { data: findings, error: findingsError } = await db
       .from('security_reports')
       .select('*')
       .eq('scan_id', scanId)
@@ -77,27 +77,25 @@ export async function GET(
     
     // Build response object
     const response = {
-      scanId: scanStatus.scan_id,
+      id: scanStatus.scan_id,
       companyName: scanStatus.company_name,
-      domain: scanStatus.domain,
       status: scanStatus.status,
-      createdAt: scanStatus.started_at,
-      completedAt: scanStatus.completed_at,
-      totalFindings: scanStatus.total_findings_count || findings?.length || 0,
-      totalArtifacts: scanStatus.total_artifacts_count || 0,
-      maxSeverity,
       progress: scanStatus.progress,
       currentModule: scanStatus.current_module,
+      totalModules: scanStatus.total_modules,
+      createdAt: scanStatus.created_at,
+      updatedAt: scanStatus.updated_at,
       errorMessage: scanStatus.error_message,
-      lastUpdated: scanStatus.last_updated,
-      findings: findings || []
-      // Note: artifacts removed from initial load - will be fetched on demand
+      findings: findings || [],
+      maxSeverity,
+      totalFindings: scanStatus.total_findings_count || findings?.length || 0,
+      totalArtifacts: scanStatus.total_artifacts_count || 0
     }
     
     const processingTime = Date.now() - startTime
     console.log(`✅ [SCAN-DETAILS] Operation completed in ${processingTime}ms`)
     console.log(`📊 [SCAN-DETAILS] Response summary:`, {
-      scanId: response.scanId,
+      scanId: response.id,
       status: response.status,
       totalFindings: response.totalFindings,
       totalArtifacts: response.totalArtifacts,
