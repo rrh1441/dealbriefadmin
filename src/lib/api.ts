@@ -1,73 +1,75 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dealbrief-scanner.fly.dev'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 export interface Scan {
   scanId: string
   companyName: string
   domain: string
-  status: 'queued' | 'running' | 'processing' | 'done' | 'completed' | 'failed'
+  status: 'queued' | 'running' | 'processing' | 'completed' | 'failed' | 'done'
   createdAt: string
   completedAt?: string
-  totalFindings?: number
-  maxSeverity?: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-  // Status tracking fields
+  totalFindings: number
+  totalArtifacts?: number
+  maxSeverity: string
   progress?: number
   currentModule?: string
   errorMessage?: string
   lastUpdated?: string
 }
 
+export interface ScanDetails extends Scan {
+  findings: Finding[]
+  artifacts?: Artifact[]
+}
+
 export interface ScanStatus {
   scan_id: string
   company_name: string
   domain: string
-  status: 'queued' | 'running' | 'processing' | 'completed' | 'failed'
+  status: string
   progress: number
-  current_module?: string
+  current_module: string | null
   total_modules: number
   started_at: string
   last_updated: string
-  completed_at?: string
-  error_message?: string
-}
-
-export interface ScanDetails extends Scan {
-  modules: ModuleStatus[]
-  findings: Finding[]
-  artifacts: Artifact[]
-}
-
-export interface ModuleStatus {
-  name: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
-  findings: number
-  startedAt?: string
-  completedAt?: string
-  error?: string
+  completed_at: string | null
+  error_message: string | null
+  total_artifacts_count?: number
 }
 
 export interface Finding {
   id: string
+  scanId: string
   type: string
-  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
+  title: string
   description: string
-  recommendation: string
-  artifactId: string
+  recommendation?: string
+  evidence?: any
   createdAt: string
 }
 
 export interface Artifact {
   id: string
+  scanId: string
   type: string
   valText: string
-  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-  srcUrl?: string
-  meta?: Record<string, any>
+  severity: string
   createdAt: string
+}
+
+export interface Report {
+  id: string
+  scanId: string
+  companyName: string
+  domain: string
+  createdAt: string
+  totalFindings: number
+  maxSeverity: string
+  report_url?: string
 }
 
 export const api = {
   async getScans(): Promise<Scan[]> {
-    // Fetch from Vercel API routes which use Supabase
     const response = await fetch('/api/scans')
     if (!response.ok) throw new Error('Failed to fetch scans')
     return response.json()
@@ -85,55 +87,60 @@ export const api = {
     return response.json()
   },
 
-  async createScan(companyName: string, domain: string): Promise<{ scanId: string; statusStored: boolean }> {
+  async getScanArtifacts(scanId: string): Promise<Artifact[]> {
+    const response = await fetch(`/api/scans/${scanId}/artifacts`)
+    if (!response.ok) throw new Error('Failed to fetch scan artifacts')
+    return response.json()
+  },
+
+  async createScan(companyName: string, domain: string): Promise<{ scanId: string }> {
     const response = await fetch('/api/scans/create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ companyName, domain }),
     })
     if (!response.ok) throw new Error('Failed to create scan')
     return response.json()
   },
 
-  async generateReport(scanId: string, tags: string[] = []): Promise<{ reportUrl: string }> {
-    const response = await fetch(`/api/scans/${scanId}/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tags }),
-    })
-    if (!response.ok) throw new Error('Failed to generate report')
-    return response.json()
-  },
-
-  async rerunScan(scanId: string): Promise<{ newScanId: string }> {
-    // Call Fly.io backend directly for rerunning scans
-    const response = await fetch(`${API_URL}/scan/${scanId}/rerun`, {
+  async rerunScan(scanId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/scan/${scanId}/rerun`, {
       method: 'POST',
     })
     if (!response.ok) throw new Error('Failed to rerun scan')
+  },
+
+  async getReports(): Promise<Report[]> {
+    const response = await fetch('/api/reports')
+    if (!response.ok) throw new Error('Failed to fetch reports')
     return response.json()
   },
 
-  // Utility function for polling scan status
-  pollScanStatus(scanId: string, onUpdate: (status: ScanStatus) => void, intervalMs: number = 5000): () => void {
+  pollScanStatus(
+    scanId: string, 
+    onUpdate: (status: ScanStatus) => void, 
+    interval: number = 5000
+  ): () => void {
     const poll = async () => {
       try {
         const status = await this.getScanStatus(scanId)
         onUpdate(status)
         
-        // Stop polling if scan is completed or failed
-        if (['completed', 'failed'].includes(status.status)) {
+        // Stop polling if scan is complete
+        if (['completed', 'failed', 'done'].includes(status.status)) {
           clearInterval(intervalId)
         }
       } catch (error) {
         console.error('Failed to poll scan status:', error)
       }
     }
-    
+
     // Poll immediately, then at intervals
     poll()
-    const intervalId = setInterval(poll, intervalMs)
-    
+    const intervalId = setInterval(poll, interval)
+
     // Return cleanup function
     return () => clearInterval(intervalId)
   }

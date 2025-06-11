@@ -7,18 +7,13 @@ export async function GET() {
   try {
     console.log('🔍 [REPORTS] Starting reports fetch operation...')
     
+    // Fetch all reports from security_reports table
     const queryStart = Date.now()
     const { data: reports, error } = await supabaseServer
       .from('security_reports')
-      .select(`
-        id,
-        scan_id,
-        company_name,
-        tags,
-        generated_at
-      `)
-      .order('generated_at', { ascending: false })
-      .limit(100)
+      .select('scan_id, company_name, domain, severity, created_at, report_url')
+      .not('company_name', 'is', null)
+      .order('created_at', { ascending: false })
     
     const queryTime = Date.now() - queryStart
     console.log(`📊 [REPORTS] Supabase query completed in ${queryTime}ms`)
@@ -28,36 +23,69 @@ export async function GET() {
       throw error
     }
     
-    console.log(`✅ [REPORTS] Found ${reports?.length || 0} reports`)
+    console.log(`📊 [REPORTS] Found ${reports?.length || 0} reports`)
     
     if (!reports || reports.length === 0) {
-      console.log('⚠️ [REPORTS] No reports found in database')
+      console.log('⚠️ [REPORTS] No reports found')
       return NextResponse.json([])
     }
     
-    // Parse tags from JSON if they're stored as strings
+    // Group reports by scan_id to create report summaries
     const processingStart = Date.now()
-    const processedReports = reports?.map(row => ({
-      ...row,
-      domain: 'N/A', // Add default domain since column doesn't exist
-      tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : (row.tags || [])
-    })) || []
+    const reportMap = new Map()
+    
+    reports.forEach(report => {
+      const scanId = report.scan_id
+      
+      if (!reportMap.has(scanId)) {
+        reportMap.set(scanId, {
+          id: scanId, // Using scan_id as report id for now
+          scanId,
+          companyName: report.company_name,
+          domain: report.domain,
+          createdAt: report.created_at,
+          totalFindings: 0,
+          maxSeverity: 'INFO',
+          report_url: report.report_url
+        })
+      }
+      
+      const reportSummary = reportMap.get(scanId)
+      reportSummary.totalFindings++
+      
+      // Update max severity
+      const severityOrder = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'INFO': 0 }
+      const currentSeverity = severityOrder[report.severity as keyof typeof severityOrder] || 0
+      const maxSeverity = severityOrder[reportSummary.maxSeverity as keyof typeof severityOrder] || 0
+      
+      if (currentSeverity > maxSeverity) {
+        reportSummary.maxSeverity = report.severity
+      }
+      
+      // Use the latest report_url if multiple reports exist for the same scan
+      if (report.report_url && (!reportSummary.report_url || new Date(report.created_at) > new Date(reportSummary.createdAt))) {
+        reportSummary.report_url = report.report_url
+      }
+    })
     
     const processingTime = Date.now() - processingStart
-    console.log(`📊 [REPORTS] Tag processing completed in ${processingTime}ms`)
+    console.log(`📊 [REPORTS] Processed ${reports.length} report entries into ${reportMap.size} unique reports in ${processingTime}ms`)
     
-    // Log some statistics
-    const companyCounts = processedReports.reduce((acc, report) => {
-      acc[report.company_name] = (acc[report.company_name] || 0) + 1
+    const reportSummaries = Array.from(reportMap.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 100)
+    
+    // Log severity breakdown
+    const severityBreakdown = reportSummaries.reduce((acc, report) => {
+      acc[report.maxSeverity] = (acc[report.maxSeverity] || 0) + 1
       return acc
     }, {} as Record<string, number>)
     
     const totalTime = Date.now() - startTime
-    console.log(`✅ [REPORTS] Operation completed in ${totalTime}ms`)
-    console.log(`📊 [REPORTS] Company distribution:`, Object.keys(companyCounts).length, 'unique companies')
-    console.log(`📊 [REPORTS] Date range: ${reports[reports.length - 1]?.generated_at} to ${reports[0]?.generated_at}`)
+    console.log(`✅ [REPORTS] Operation completed in ${totalTime}ms - returning ${reportSummaries.length} reports`)
+    console.log(`📊 [REPORTS] Severity breakdown:`, severityBreakdown)
     
-    return NextResponse.json(processedReports)
+    return NextResponse.json(reportSummaries)
   } catch (error: any) {
     const totalTime = Date.now() - startTime
     console.error(`❌ [REPORTS] Operation failed after ${totalTime}ms:`, error)
