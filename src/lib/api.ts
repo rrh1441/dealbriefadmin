@@ -5,18 +5,25 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 export interface Scan {
   id: string
   companyName: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
+  domain: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'done'
   progress: number
   currentModule: string
   totalModules: number
   createdAt: string
   updatedAt: string
+  completedAt?: string
   errorMessage?: string
+  maxSeverity?: string
+  totalFindings?: number
   findings: Finding[]
 }
 
 export interface ScanDetails extends Scan {
   findings: Finding[]
+  maxSeverity?: string
+  totalFindings?: number
+  totalArtifacts?: number
 }
 
 export interface ScanStatus {
@@ -39,6 +46,8 @@ export interface Finding {
   type: string
   title: string
   description: string
+  severity: string
+  recommendation?: string
 }
 
 export interface Artifact {

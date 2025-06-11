@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
       currentModule: 'Initializing',
       totalModules: 0,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      findings: []
     })
   } catch (error: any) {
     const totalTime = Date.now() - startTime

@@ -41,10 +41,10 @@ export default function ScansPage() {
     // Set up polling for scans that are still running
     scanList.forEach(scan => {
       if (['queued', 'running', 'processing'].includes(scan.status)) {
-        const cleanup = api.pollScanStatus(scan.scanId, (status) => {
+        const cleanup = api.pollScanStatus(scan.id, (status) => {
           setScans(prevScans => 
             prevScans.map(s => 
-              s.scanId === scan.scanId 
+              s.id === scan.id 
                 ? {
                     ...s,
                     status: status.status as any,
@@ -58,7 +58,7 @@ export default function ScansPage() {
           )
         }, 5000) // Poll every 5 seconds
 
-        pollersRef.current.set(scan.scanId, cleanup)
+        pollersRef.current.set(scan.id, cleanup)
       }
     })
   }
@@ -92,7 +92,7 @@ export default function ScansPage() {
       setNewScan({ companyName: '', domain: '' })
       
       // Show success message
-      alert(`Scan created successfully! Scan ID: ${result.scanId}`)
+      alert(`Scan created successfully! Scan ID: ${result.id}`)
       
       // Refresh scans list immediately
       fetchScans()
@@ -341,7 +341,7 @@ export default function ScansPage() {
                 <div className="space-y-4">
                   {filteredScans.map((scan) => (
                     <div
-                      key={scan.scanId}
+                      key={scan.id}
                       className="flex items-center justify-between p-4 rounded-lg border"
                     >
                       <div className="flex items-center space-x-4 flex-1">
@@ -377,7 +377,7 @@ export default function ScansPage() {
                             {scan.totalFindings} findings
                           </div>
                         )}
-                        <Link href={`/scans/${scan.scanId}`}>
+                        <Link href={`/scans/${scan.id}`}>
                           <Button variant="outline" size="sm">
                             View Details
                           </Button>

@@ -42,21 +42,40 @@ export async function GET() {
     const scans = scanStatuses?.map(status => {
       const scanReports = reports?.filter(report => report.scan_id === status.scan_id) || []
       
+      // Calculate max severity
+      let maxSeverity = 'INFO'
+      const severityOrder = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'INFO': 0 }
+      
+      scanReports.forEach(report => {
+        const currentSeverity = severityOrder[report.severity as keyof typeof severityOrder] || 0
+        const currentMaxSeverity = severityOrder[maxSeverity as keyof typeof severityOrder] || 0
+        
+        if (currentSeverity > currentMaxSeverity) {
+          maxSeverity = report.severity
+        }
+      })
+      
       return {
         id: status.scan_id,
         companyName: status.company_name,
+        domain: status.domain,
         status: status.status,
         progress: status.progress,
         currentModule: status.current_module,
         totalModules: status.total_modules,
         createdAt: status.created_at,
         updatedAt: status.updated_at,
+        completedAt: status.completed_at,
         errorMessage: status.error_message,
+        maxSeverity: scanReports.length > 0 ? maxSeverity : undefined,
+        totalFindings: scanReports.length,
         findings: scanReports.map(report => ({
           id: report.id,
           type: report.type,
           title: report.title,
-          description: report.description
+          description: report.description,
+          severity: report.severity,
+          recommendation: report.recommendation
         }))
       }
     }) || []
