@@ -1,24 +1,22 @@
+import { db } from './db'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 export interface Scan {
-  scanId: string
+  id: string
   companyName: string
-  domain: string
-  status: 'queued' | 'running' | 'processing' | 'completed' | 'failed' | 'done'
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  progress: number
+  currentModule: string
+  totalModules: number
   createdAt: string
-  completedAt?: string
-  totalFindings: number
-  totalArtifacts?: number
-  maxSeverity: string
-  progress?: number
-  currentModule?: string
+  updatedAt: string
   errorMessage?: string
-  lastUpdated?: string
+  findings: Finding[]
 }
 
 export interface ScanDetails extends Scan {
   findings: Finding[]
-  artifacts?: Artifact[]
 }
 
 export interface ScanStatus {
@@ -38,14 +36,9 @@ export interface ScanStatus {
 
 export interface Finding {
   id: string
-  scanId: string
   type: string
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO'
   title: string
   description: string
-  recommendation?: string
-  evidence?: any
-  createdAt: string
 }
 
 export interface Artifact {
@@ -71,13 +64,17 @@ export interface Report {
 export const api = {
   async getScans(): Promise<Scan[]> {
     const response = await fetch('/api/scans')
-    if (!response.ok) throw new Error('Failed to fetch scans')
+    if (!response.ok) {
+      throw new Error('Failed to fetch scans')
+    }
     return response.json()
   },
 
   async getScanDetails(scanId: string): Promise<ScanDetails> {
     const response = await fetch(`/api/scans/${scanId}`)
-    if (!response.ok) throw new Error('Failed to fetch scan details')
+    if (!response.ok) {
+      throw new Error('Failed to fetch scan details')
+    }
     return response.json()
   },
 
@@ -93,7 +90,7 @@ export const api = {
     return response.json()
   },
 
-  async createScan(companyName: string, domain: string): Promise<{ scanId: string }> {
+  async createScan(companyName: string, domain: string): Promise<Scan> {
     const response = await fetch('/api/scans/create', {
       method: 'POST',
       headers: {
@@ -101,15 +98,19 @@ export const api = {
       },
       body: JSON.stringify({ companyName, domain }),
     })
-    if (!response.ok) throw new Error('Failed to create scan')
+    if (!response.ok) {
+      throw new Error('Failed to create scan')
+    }
     return response.json()
   },
 
   async rerunScan(scanId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/scan/${scanId}/rerun`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/scans/${scanId}/rerun`, {
       method: 'POST',
     })
-    if (!response.ok) throw new Error('Failed to rerun scan')
+    if (!response.ok) {
+      throw new Error('Failed to rerun scan')
+    }
   },
 
   async getReports(): Promise<Report[]> {
