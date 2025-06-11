@@ -11,7 +11,7 @@ export async function GET(
   try {
     console.log(`🔍 [SCAN-DETAILS] Starting detailed scan fetch for scan ${scanId}...`)
     
-    // Fetch scan metadata from scan_status table
+    // Fetch scan metadata from scan_status table (primary source)
     const statusStart = Date.now()
     const { data: scanStatus, error: statusError } = await db
       .from('scan_status')
@@ -44,20 +44,19 @@ export async function GET(
     
     console.log(`📊 [SCAN-DETAILS] Found scan status: ${scanStatus.status}`)
     
-    // Fetch findings from security_reports table
+    // Fetch findings from security_reports table for maxSeverity calculation
     const findingsStart = Date.now()
     const { data: findings, error: findingsError } = await db
       .from('security_reports')
-      .select('*')
+      .select('severity')
       .eq('scan_id', scanId)
-      .order('created_at', { ascending: false })
     
     const findingsTime = Date.now() - findingsStart
     console.log(`📊 [SCAN-DETAILS] Security reports query completed in ${findingsTime}ms`)
     
     if (findingsError) {
       console.error('❌ [SCAN-DETAILS] Security reports query error:', findingsError)
-      throw findingsError
+      // Don't throw - we can still return scan details without findings
     }
     
     console.log(`📊 [SCAN-DETAILS] Found ${findings?.length || 0} findings`)
@@ -75,7 +74,7 @@ export async function GET(
       }
     })
     
-    // Build response object
+    // Build response object using scan_status as primary source
     const response = {
       id: scanStatus.scan_id,
       companyName: scanStatus.company_name,
@@ -88,9 +87,9 @@ export async function GET(
       updatedAt: scanStatus.updated_at,
       completedAt: scanStatus.completed_at,
       errorMessage: scanStatus.error_message,
-      findings: findings || [],
-      maxSeverity,
-      totalFindings: scanStatus.total_findings_count || findings?.length || 0,
+      findings: [], // Empty - artifacts loaded on-demand
+      maxSeverity: findings?.length > 0 ? maxSeverity : undefined,
+      totalFindings: scanStatus.total_findings_count || 0,
       totalArtifacts: scanStatus.total_artifacts_count || 0
     }
     

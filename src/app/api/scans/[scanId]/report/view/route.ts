@@ -9,47 +9,40 @@ export async function GET(
   const { scanId } = params
   
   try {
-    console.log(`🔍 [REPORT-VIEW] Starting report view for scan ${scanId}...`)
-    
-    // Query security_reports table for report_url
-    const queryStart = Date.now()
+    console.log(`🔍 [REPORT-VIEW] Fetching report for scan ${scanId}`)
+
     const { data: report, error } = await db
       .from('security_reports')
-      .select('*')
+      .select('report_url')
       .eq('scan_id', scanId)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
-    
-    const queryTime = Date.now() - queryStart
-    console.log(`📊 [REPORT-VIEW] Supabase query completed in ${queryTime}ms`)
-    
+
     if (error) {
       if (error.code === 'PGRST116') {
         console.log(`⚠️ [REPORT-VIEW] No report found for scan ${scanId}`)
-        return NextResponse.json({ 
-          error: 'Report not found',
-          message: `No report found for scan ID: ${scanId}`
-        }, { status: 404 })
+        return NextResponse.json(
+          { error: 'Report not found' },
+          { status: 404 }
+        )
       }
-      console.error('❌ [REPORT-VIEW] Supabase query error:', error)
       throw error
     }
-    
-    if (!report) {
-      console.log(`⚠️ [REPORT-VIEW] No report found for scan ${scanId}`)
-      return NextResponse.json({ 
-        error: 'Report not found',
-        message: `No report found for scan ID: ${scanId}`
-      }, { status: 404 })
+
+    if (!report || !report.report_url) {
+      console.log(`⚠️ [REPORT-VIEW] No report URL available for scan ${scanId}`)
+      return NextResponse.json(
+        { error: 'Report URL not available' },
+        { status: 404 }
+      )
     }
-    
-    console.log(`✅ [REPORT-VIEW] Found report for scan ${scanId}`)
-    
+
     const totalTime = Date.now() - startTime
-    console.log(`✅ [REPORT-VIEW] Returning report in ${totalTime}ms`)
-    
-    return NextResponse.json(report)
+    console.log(`✅ [REPORT-VIEW] Redirecting to report URL in ${totalTime}ms`)
+
+    // Redirect to the report URL
+    return NextResponse.redirect(report.report_url)
   } catch (error: any) {
     const totalTime = Date.now() - startTime
     console.error(`❌ [REPORT-VIEW] Operation failed after ${totalTime}ms:`, error)

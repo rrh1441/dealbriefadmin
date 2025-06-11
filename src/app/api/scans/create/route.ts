@@ -9,10 +9,35 @@ export async function POST(request: NextRequest) {
     
     console.log(`🔍 [SCAN-CREATE] Starting scan creation for: ${companyName} (${domain})`)
     
-    // Create scan status record
+    // First, create scan on the backend
+    const backendResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ companyName, domain }),
+    })
+    
+    if (!backendResponse.ok) {
+      throw new Error(`Backend API failed with status: ${backendResponse.status}`)
+    }
+    
+    const result = await backendResponse.json()
+    
+    // Strict validation check
+    if (!result || !result.scanId) {
+      const errorMsg = `Backend scan creation failed: Invalid or missing scanId. Result: ${JSON.stringify(result)}`
+      console.error(`❌ [SCAN-CREATE] ${errorMsg}`)
+      throw new Error(errorMsg)
+    }
+    
+    console.log(`✅ [SCAN-CREATE] Scan created on backend with ID: ${result.scanId}`)
+    
+    // Create scan status record in Supabase
     const { data: scanStatus, error } = await db
       .from('scan_status')
       .insert({
+        scan_id: result.scanId,
         company_name: companyName,
         domain: domain,
         status: 'queued',
@@ -25,15 +50,18 @@ export async function POST(request: NextRequest) {
       .select('scan_id')
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error(`❌ [SCAN-CREATE] Supabase insert failed:`, error)
+      throw error
+    }
 
-    console.log(`✅ [SCAN-CREATE] Scan created on Fly.io with ID: ${scanStatus.scan_id}`)
+    console.log(`✅ [SCAN-CREATE] Scan status record created in Supabase`)
     
     const totalTime = Date.now() - startTime
     console.log(`✅ [SCAN-CREATE] Operation completed in ${totalTime}ms`)
     
     return NextResponse.json({
-      id: scanStatus.scan_id,
+      id: result.scanId,
       companyName,
       domain,
       status: 'queued',

@@ -8,60 +8,38 @@ export async function GET(
   const { scanId } = params
   
   try {
-    console.log(`🔍 [SCAN-ARTIFACTS] Starting artifact fetch for scan ${scanId}...`)
+    console.log(`🔍 [ARTIFACTS] Proxying artifacts request for scan ${scanId}`)
     
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL
-    if (!backendUrl) {
-      throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
+    // Proxy request to backend
+    const backendUrl = `${process.env.NEXT_PUBLIC_API_URL}/scan/${scanId}/artifacts`
+    const backendResponse = await fetch(backendUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!backendResponse.ok) {
+      console.error(`❌ [ARTIFACTS] Backend API failed with status: ${backendResponse.status}`)
+      return NextResponse.json(
+        { error: `Backend API failed with status: ${backendResponse.status}` },
+        { status: backendResponse.status }
+      )
     }
     
-    const artifactEndpoint = `${backendUrl}/scan/${scanId}/artifacts`
-    console.log(`📡 [SCAN-ARTIFACTS] Calling backend endpoint: ${artifactEndpoint}`)
-    
-    const backendStart = Date.now()
-    const response = await fetch(artifactEndpoint)
-    const backendTime = Date.now() - backendStart
-    
-    console.log(`📊 [SCAN-ARTIFACTS] Backend call completed in ${backendTime}ms with status: ${response.status}`)
-    
-    if (!response.ok) {
-      console.error(`❌ [SCAN-ARTIFACTS] Backend API error: ${response.status} ${response.statusText}`)
-      
-      // Try to get error details from response
-      let errorDetails = 'Unknown error'
-      try {
-        const errorData = await response.text()
-        errorDetails = errorData
-      } catch (parseError) {
-        console.warn('⚠️ [SCAN-ARTIFACTS] Could not parse error response')
-      }
-      
-      return NextResponse.json({ 
-        error: 'Failed to fetch artifacts from backend',
-        details: errorDetails,
-        status: response.status
-      }, { status: response.status })
-    }
-    
-    const artifacts = await response.json()
-    console.log(`✅ [SCAN-ARTIFACTS] Successfully fetched ${artifacts?.length || 0} artifacts`)
+    const artifacts = await backendResponse.json()
     
     const totalTime = Date.now() - startTime
-    console.log(`✅ [SCAN-ARTIFACTS] Operation completed in ${totalTime}ms`)
+    console.log(`✅ [ARTIFACTS] Proxy completed in ${totalTime}ms - returning ${artifacts?.length || 0} artifacts`)
     
     return NextResponse.json(artifacts)
   } catch (error: any) {
     const totalTime = Date.now() - startTime
-    console.error(`❌ [SCAN-ARTIFACTS] Operation failed after ${totalTime}ms:`, error)
-    console.error('❌ [SCAN-ARTIFACTS] Error details:', {
-      name: error?.name,
-      message: error?.message,
-      stack: error?.stack
-    })
+    console.error(`❌ [ARTIFACTS] Proxy failed after ${totalTime}ms:`, error)
     
-    return NextResponse.json({ 
-      error: 'Failed to fetch scan artifacts',
-      details: error?.message || 'Unknown error'
-    }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to fetch artifacts' },
+      { status: 500 }
+    )
   }
 } 
